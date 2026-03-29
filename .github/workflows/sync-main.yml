@@ -1,0 +1,51 @@
+name: Sync Main
+on:
+  schedule:
+    - cron: '55 * * * *'
+  workflow_dispatch:
+
+jobs:
+  sync-main:
+    name: Sync-main
+    runs-on: ubuntu-latest
+    if: github.repository == 'FortiShield/content-hub'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Git config
+        shell: bash
+        run: |
+          git config user.name "fortishield"
+          git config user.email "bdkhulnasoft@gmail.com"
+
+      - name: Fetch upstream
+        shell: bash
+        run: |
+          set -ex  # Stop on errors and echo commands
+          git fetch
+          git remote add upstream https://github.com/demisto/content.git || echo "Upstream already exists"
+          git fetch upstream --tags
+
+      - name: Sync Main
+        shell: bash
+        run: |
+          set -ex  # Stop on errors and echo commands
+          
+          echo "Merging upstream/master into current branch..."
+          if ! git merge upstream/master; then
+            echo "Merge failed. Resolve conflicts locally before pushing."
+            exit 1
+          fi
+          echo "Merge successful. Pushing branch..."
+          git push origin 1.19.5-hub
+
+          echo "Pushing tags..."
+          git push origin --tags  # Safe push without force
+          # If force-pushing tags is intentionally required, uncomment the next line and explain why:
+          # git push origin --tags --force

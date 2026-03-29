@@ -1,0 +1,95 @@
+name: Sync Main & Check Synchronized Files
+
+on:
+  schedule:
+    - cron: '55 * * * *'
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - 'rc/*'
+  pull_request:
+    branches:
+      - main
+      - 'rc/*'
+
+jobs:
+  sync-and-check:
+    runs-on: ubuntu-latest
+    if: github.repository == 'FortiShield/content-hub'
+    permissions:
+      contents: write
+    steps:
+      # Checkout repository
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Git configuration
+      - name: Git config
+        shell: bash
+        run: |
+          git config user.name "fortishield"
+          git config user.email "bdkhulnasoft@gmail.com"
+
+      # Fetch upstream
+      - name: Fetch upstream
+        shell: bash
+        run: |
+          set -ex
+          git fetch
+          git remote add upstream https://github.com/demisto/content.git || echo "Upstream already exists"
+          git fetch upstream --tags
+
+      # Create a backup branch before merge
+      - name: Backup current branch
+        shell: bash
+        run: |
+          set -ex
+          BACKUP_BRANCH="backup-$(date +%Y%m%d%H%M%S)"
+          git branch "$BACKUP_BRANCH"
+          echo "Created backup branch: $BACKUP_BRANCH"
+
+      # Merge upstream/master
+      - name: Sync Main
+        shell: bash
+        run: |
+          set -ex
+          echo "Merging upstream/master into current branch..."
+          if ! git merge upstream/master; then
+            echo "Merge failed. Resolve conflicts locally or restore from backup branch."
+            exit 1
+          fi
+          echo "Merge successful. Pushing branch..."
+          git push origin 1.19.5-hub
+          echo "Pushing tags..."
+          git push origin --tags  # Safe push, removed --force
+          # If force-pushing tags is required, uncomment below and explain:
+          # git push origin --tags --force
+
+      # Set up Python for sync-files.py check
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.12'
+
+      # Install dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+              pip install -r requirements.txt
+          fi
+
+      # Check synchronized files
+      - name: Check synchronized files
+        shell: bash
+        run: |
+          set -e
+          # This script ensures certain files that must remain identical across the repo are consistent.
+          # It can check differences or overwrite with a master copy if needed.
+          echo "Running sync-files.py check..."
+          python .github/workflow_scripts/sync-files.py
+          echo "Sync check completed successfully."
