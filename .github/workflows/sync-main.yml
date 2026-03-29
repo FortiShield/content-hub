@@ -1,0 +1,36 @@
+name: Sync Main
+on:
+  schedule:
+    - cron:  '55 * * * *'
+  workflow_dispatch:
+jobs:
+  sync-main:
+    name: Sync-main
+    runs-on: ubuntu-latest
+    if: github.repository == 'FortiShield/content-hub'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GUTHUB_TOKEN }}
+      - name: Git config
+        shell: bash
+        run: |
+          git config user.name fortishield
+          git config user.email bdkhulnasoft@gmail.com  
+      - name: Fetch
+        shell: bash
+        run: |
+          set -x
+          git fetch
+          git remote add upstream https://github.com/demisto/content.git
+          git fetch upstream --tags --force
+      - name: Sync Main
+        shell: bash
+        run: |
+          git merge master
+          git push origin 1.19.5-hub
+          git push origin --tags --force
