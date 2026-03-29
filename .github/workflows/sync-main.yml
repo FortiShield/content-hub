@@ -31,6 +31,6 @@ jobs:
       - name: Sync Main
         shell: bash
         run: |
-          git merge master
+          git merge upstream/master
           git push origin 1.19.5-hub
           git push origin --tags --force
